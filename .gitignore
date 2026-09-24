@@ -44,3 +44,5 @@ frontend/.env*.local
 .vscode/
 *.swp
 *~
+.cursor
+.env.example
