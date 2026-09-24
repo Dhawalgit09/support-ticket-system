@@ -1,0 +1,7 @@
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/support_tickets}
+    username: ${SPRING_DATASOURCE_USERNAME:support}
+    password: ${SPRING_DATASOURCE_PASSWORD:support}
+  flyway:
+    enabled: true

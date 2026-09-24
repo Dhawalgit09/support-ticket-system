@@ -1,0 +1,132 @@
+---
+description: Java 21 and Spring Boot coding standards for the Support Ticket System
+alwaysApply: true
+---
+
+# Java 21 & Spring Boot Standards
+
+## Runtime & Tooling
+
+- **Java 21** is required. Do not target older LTS versions.
+- Use Spring Boot aligned with Java 21 (current stable release at implementation time).
+- Build with Maven or Gradle — choose once in `spec/architecture.md` and stay consistent.
+- Enable `-parameters` for Spring MVC binding where applicable.
+
+## Architecture
+
+Follow a **layered architecture**:
+
+```
+Controller (REST) → Service (business logic) → Repository (persistence)
+```
+
+- **Controllers**: HTTP concerns only — mapping, status codes, request/response DTOs. No business logic.
+- **Services**: Business rules, state transitions, orchestration, transactions.
+- **Repositories**: Data access only. Use Spring Data JPA where appropriate.
+
+Do not introduce extra layers (facades, managers, handlers) unless a specification documents the need.
+
+## Package Organization
+
+Use feature-oriented or layered packages under a single root, e.g.:
+
+```
+com.example.supportticket
+├── config
+├── controller
+├── dto
+│   ├── request
+│   └── response
+├── entity
+├── exception
+├── repository
+├── service
+└── validation
+```
+
+Keep packages shallow. Avoid `impl` packages unless interfaces are genuinely required.
+
+## Naming Conventions
+
+| Element | Convention | Example |
+|---------|------------|---------|
+| Classes | PascalCase | `TicketService` |
+| Methods/fields | camelCase | `findByStatus` |
+| Constants | UPPER_SNAKE_CASE | `MAX_TITLE_LENGTH` |
+| REST resources | plural kebab-case paths | `/api/tickets` |
+| DTOs | suffix `Request` / `Response` | `CreateTicketRequest` |
+| Entities | singular noun | `Ticket`, `Comment` |
+
+## Dependency Injection
+
+- Prefer **constructor injection** with `final` fields.
+- Avoid field injection (`@Autowired` on fields).
+- Keep beans stateless unless a specification requires otherwise.
+
+## DTO / Entity Separation
+
+- **Never** expose JPA entities directly from REST controllers.
+- Map between entities and DTOs in the service layer or dedicated mapper (only if mapping becomes repetitive).
+- Request DTOs carry validation annotations; response DTOs expose only client-safe fields.
+
+## Exception Handling
+
+- Use a global `@RestControllerAdvice` for consistent error responses per `.cursor/rules/api-standards.mdc`.
+- Throw domain-specific exceptions (e.g. `TicketNotFoundException`, `InvalidStatusTransitionException`).
+- Do not leak stack traces, SQL, or internal class names to clients.
+- Map exceptions to appropriate HTTP status codes.
+
+## Validation
+
+- Use Jakarta Bean Validation (`@Valid`, `@NotBlank`, `@Size`, etc.) on request DTOs.
+- Validate business rules (e.g. state machine) in the **service layer**, not controllers.
+- Return field-level validation errors in a consistent structure (see API standards).
+
+## Transaction Management
+
+- Annotate service methods that modify data with `@Transactional`.
+- Keep transactions short; do not span external I/O inside transactions unless specified.
+- Use `readOnly = true` for read-only service methods where beneficial.
+
+## Database Access
+
+- **PostgreSQL** for runtime; **H2** for tests/local dev where appropriate.
+- Use Flyway or Liquibase for schema migrations — decide in architecture spec.
+- Entities use sensible indexes for search/filter columns defined in `spec/data-model.md`.
+- Prefer derived query methods or `@Query` only when needed; avoid native SQL unless justified.
+- Never use `ddl-auto=create-drop` in production profiles.
+
+## Logging
+
+- Use SLF4J (`log.info`, `log.warn`, `log.error`).
+- Log business events at INFO; failures at WARN/ERROR with context (ticket ID, not PII).
+- Never log secrets, passwords, or full request bodies containing sensitive data.
+
+## Null Handling
+
+- Prefer `Optional` for repository return types that may be absent.
+- Validate non-null inputs at boundaries (DTO validation).
+- Do not use `Optional` as method parameters or fields.
+
+## Immutability
+
+- Prefer `record` for immutable DTOs where practical (Java 21).
+- Keep entity setters minimal; business methods on entities only when they encode domain behavior documented in specs.
+
+## Abstractions
+
+- **YAGNI**: No generic repositories, base services, or speculative patterns.
+- Extract only when duplication is real and repeated (rule of three).
+
+## Security
+
+- No hardcoded credentials, API keys, or connection strings.
+- Use environment variables or Spring `application-{profile}.yml` with secrets outside VCS.
+- Validate and sanitize all external input.
+- Apply least privilege for database users in deployment docs.
+
+## Code Quality
+
+- Production-oriented code: clear naming, small methods, meaningful tests.
+- Avoid deprecated APIs; check Spring Boot migration guides when upgrading.
+- Follow existing project patterns before introducing new ones.

@@ -1,0 +1,98 @@
+---
+description: Testing standards for the Support Ticket System
+alwaysApply: true
+---
+
+# Testing Standards
+
+## Principles
+
+- Test **behavior**, not implementation details.
+- Every test must answer: "What user or system requirement does this prove?"
+- Avoid tests that only increase coverage without asserting meaningful outcomes.
+- Tests must be **isolated**, **repeatable**, and **fast** where possible.
+
+## Test Pyramid
+
+| Layer | Scope | Tools (typical) |
+|-------|-------|-----------------|
+| Unit | Single class, mocked dependencies | JUnit 5, Mockito |
+| Integration | Spring context + DB | `@SpringBootTest`, Testcontainers or H2 |
+| API / Controller | HTTP layer end-to-end | `@WebMvcTest` or `MockMvc` / REST Assured |
+
+## Naming
+
+Use descriptive names:
+
+```
+methodName_condition_expectedOutcome
+```
+
+Examples:
+- `createTicket_withValidInput_returns201AndTicketId`
+- `transitionStatus_fromClosedToOpen_returns409`
+
+## Unit Tests
+
+- Target service-layer business logic, validators, and state transition rules.
+- Mock repositories and external dependencies.
+- Assert on outcomes and side effects (saved entity state), not internal method call order unless critical.
+
+## Integration Tests
+
+- Use H2 or Testcontainers PostgreSQL per `spec/test-strategy.md`.
+- Test persistence round-trips: create → read → update → verify DB state.
+- Verify data survives simulated restart (new context, same DB).
+
+## Controller / API Tests
+
+- Verify HTTP status codes, response body shape, and validation error format.
+- Include negative cases: malformed JSON, missing required fields, invalid enums.
+
+## Repository Tests
+
+- Test custom queries (`@Query`, keyword search, status filter) when not covered by service integration tests.
+- Skip trivial `findById` tests unless custom logic exists.
+
+## State Machine Tests (Mandatory)
+
+Dedicated integration tests must cover **all** transitions defined in `spec/state-machine.md`:
+
+**Valid:**
+- OPEN → IN_PROGRESS → RESOLVED → CLOSED
+- OPEN → CANCELLED
+- IN_PROGRESS → CANCELLED
+
+**Invalid (must be rejected):**
+- CLOSED → OPEN, RESOLVED → OPEN, CANCELLED → OPEN
+- Any other transition not in the approved spec
+
+Assert correct HTTP status and error message/body for invalid transitions.
+
+## Validation Tests
+
+- Empty title, oversized fields, invalid priority/status values.
+- Backend must reject; UI error display is tested separately (frontend).
+
+## Negative Tests
+
+- Not found (404), conflict (409 for invalid transitions), bad request (400).
+- Do not only test happy paths.
+
+## Test Data Setup
+
+- Use builders, factory methods, or `@Sql` scripts — keep setup readable.
+- Prefer `@BeforeEach` for common fixtures; avoid shared mutable state across tests.
+- Use unique data per test when parallel execution is possible.
+
+## Assertions
+
+- Assert specific fields, not merely `isNotNull()`.
+- Use AssertJ for fluent assertions where the project adopts it.
+- For collections, assert size and key elements.
+
+## What Not to Test
+
+- Private methods directly.
+- Framework behavior (e.g. that `@Valid` exists on a DTO without sending a request).
+- Generated boilerplate without business meaning.

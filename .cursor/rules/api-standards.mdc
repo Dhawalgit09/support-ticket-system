@@ -1,0 +1,126 @@
+---
+description: REST API standards for the Support Ticket System
+alwaysApply: true
+---
+
+# API Standards
+
+## REST Conventions
+
+- Base path: `/api` (versioning added only if `spec/api-contract.md` requires it).
+- Resources are **plural nouns**, lowercase, kebab-case: `/api/tickets`, `/api/tickets/{id}/comments`.
+- Use **nouns** in paths, not verbs: `/api/tickets/search` only if query semantics cannot be expressed via query params.
+
+## HTTP Methods
+
+| Method | Usage |
+|--------|-------|
+| GET | Read single resource or collection |
+| POST | Create resource or sub-resource (e.g. comment) |
+| PUT | Full replacement of a resource (if used) |
+| PATCH | Partial update of resource fields |
+| DELETE | Remove resource (only if specified) |
+
+Prefer **PATCH** for partial field updates (title, description, priority, assignee, status).
+
+## Status Codes
+
+| Code | When |
+|------|------|
+| 200 | Successful GET, PATCH, PUT |
+| 201 | Successful POST (create) |
+| 204 | Successful DELETE with no body |
+| 400 | Validation failure, malformed request |
+| 404 | Resource not found |
+| 409 | Conflict (e.g. invalid status transition) |
+| 500 | Unexpected server error (generic message to client) |
+
+## Request / Response DTOs
+
+- JSON field names: **camelCase**.
+- Dates: ISO-8601 strings in UTC unless spec defines otherwise.
+- Enums: stable string values matching `spec/data-model.md` (e.g. `OPEN`, `IN_PROGRESS`).
+- Do not return internal IDs of unrelated aggregates unless needed by the client.
+
+## Validation Error Format
+
+Use a consistent structure for 400 responses:
+
+```json
+{
+  "timestamp": "2026-09-24T14:30:00Z",
+  "status": 400,
+  "error": "Validation Failed",
+  "message": "One or more fields are invalid",
+  "path": "/api/tickets",
+  "fieldErrors": [
+    {
+      "field": "title",
+      "message": "must not be blank",
+      "rejectedValue": ""
+    }
+  ]
+}
+```
+
+Business rule violations (e.g. invalid status transition) use the same envelope with `error` describing the rule; HTTP status 409 where appropriate.
+
+## General Error Response
+
+```json
+{
+  "timestamp": "2026-09-24T14:30:00Z",
+  "status": 404,
+  "error": "Not Found",
+  "message": "Ticket not found with id: 42",
+  "path": "/api/tickets/42"
+}
+```
+
+Never include stack traces, SQL, or internal exception class names.
+
+## Pagination
+
+If introduced in `spec/api-contract.md`:
+
+- Query params: `page` (0-based), `size`, optional `sort` (e.g. `createdAt,desc`).
+- Response wrapper:
+
+```json
+{
+  "content": [],
+  "page": 0,
+  "size": 20,
+  "totalElements": 100,
+  "totalPages": 5
+}
+```
+
+Do not implement pagination until the API contract specifies it.
+
+## Search & Filter
+
+- **Search by keyword**: `GET /api/tickets?search=keyword` (exact param name defined in api-contract).
+- **Filter by status**: `GET /api/tickets?status=OPEN` (repeatable or multi-value only if spec allows).
+- Combine search + filter when specified.
+- Document which fields keyword search covers (title, description, etc.) in the spec — do not invent here.
+
+## Consistency
+
+- Same resource shape for list items and detail unless spec defines a summary DTO.
+- Use `Location` header on 201 responses pointing to the new resource.
+- Idempotent GET; unsafe methods require clear semantics in the contract.
+
+## Versioning
+
+- Default: **no URL version prefix** until backward-incompatible changes require `/api/v1`.
+- Document breaking changes in `docs/prompt-history.md` and update `spec/api-contract.md`.
+
+## Security
+
+- No authentication scheme is assumed unless added to requirements.
+- Sanitize error messages; do not confirm existence of resources the caller should not see (future auth concern).
+
+## Endpoints
+
+**Do not invent endpoints in this file.** All paths, payloads, and behaviors are defined in `spec/api-contract.md` after human approval (GATE 5).

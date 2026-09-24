@@ -1,0 +1,12 @@
+spring:
+  application:
+    name: support-ticket-system
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: false
+
+server:
+  port: 8080
